@@ -1,0 +1,159 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity" >
+     
+<TabHost android:id="@android:id/tabhost"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+<LinearLayout 
+    android:orientation="vertical"
+    android:layout_height="match_parent"
+    android:layout_width="match_parent">
+
+<!-- tab widget put in the top -->
+    <TabWidget android:id="@android:id/tabs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"/>
+     
+    <FrameLayout android:id="@android:id/tabcontent"
+        android:layout_width="match_parent"
+        android:layout_height="0dip"
+        android:layout_weight="1">
+    
+        <LinearLayout android:id="@+id/tab_logs"
+            android:layout_width="match_parent"
+        	android:layout_height="match_parent"
+        	android:orientation="vertical">
+        	
+            <EditText android:id="@+id/in_cmd"
+                android:hint="@string/cmd_hint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />"
+            <ScrollView android:layout_weight="1"
+            	android:layout_width="match_parent"
+        		android:layout_height="0dip">
+            <TextView android:id="@+id/tv_logs"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
+			</ScrollView>
+            
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:orientation="horizontal">
+                <Button android:id="@+id/btn_restart"
+                    android:text="@string/btn_restart"
+                    android:layout_width="150dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"/>
+                <Button android:id="@+id/btn_stop"
+                    android:text="@string/btn_stop"
+                    android:layout_width="150dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"/>
+            </LinearLayout>
+            
+        </LinearLayout>
+        
+        <LinearLayout android:id="@+id/tab_stat"
+            android:layout_width="match_parent"
+        	android:layout_height="match_parent"
+        	android:orientation="vertical">
+
+            <ScrollView android:layout_weight="1"
+            	android:layout_width="match_parent"
+        		android:layout_height="0dip">
+            <TextView android:id="@+id/tv_stat"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
+            </ScrollView>
+            
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="right"
+                android:orientation="horizontal">
+                <Button
+                    android:text=""
+                    android:enabled="false"
+                    android:layout_width="150dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"/>  
+                <Button android:id="@+id/btn_refresh"
+                    android:text="@string/btn_refresh"
+                    android:layout_width="150dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"/>
+            </LinearLayout>
+            
+        </LinearLayout>
+        
+        <LinearLayout android:id="@+id/tab_conf" 
+            android:layout_width="match_parent"
+        	android:layout_height="match_parent"
+        	android:orientation="vertical">
+
+            <ScrollView android:layout_weight="1"
+            	android:layout_width="match_parent"
+        		android:layout_height="0dip">
+            <LinearLayout android:orientation="vertical"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+        		android:layout_margin="5dip">
+                
+	            <TextView android:text="@string/str_addr" 
+	                android:layout_width="match_parent" android:layout_height="wrap_content"/>
+	            <EditText android:id="@+id/txt_addr" android:inputType="number"
+	                android:layout_width="match_parent" android:layout_height="wrap_content"/>
+	           
+	            <TextView android:text="@string/str_port"
+	                android:layout_width="match_parent" android:layout_height="wrap_content"/>
+	            <EditText android:id="@+id/txt_port" android:inputType="number"
+	                android:layout_width="match_parent" android:layout_height="wrap_content"/>
+	            
+	            <TextView android:text="@string/str_algo"
+	                android:layout_width="match_parent" android:layout_height="wrap_content"/>
+	            <Spinner android:id="@+id/spin_algo"
+	                android:entries="@array/algorithms"
+	                android:layout_width="match_parent" android:layout_height="wrap_content"/>
+            
+            </LinearLayout>
+            </ScrollView>
+            
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:orientation="horizontal">
+                <Button android:id="@+id/btn_save"
+                    android:text="@string/btn_save"
+                    android:layout_width="150dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"/>
+                <Button android:id="@+id/btn_cancel"
+                    android:text="@string/btn_cancel"
+                    android:layout_width="150dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"/>
+            </LinearLayout>
+
+        </LinearLayout>"
+
+    </FrameLayout>
+    
+<!-- tab widget put in the bottom    
+    <TabWidget android:id="@android:id/tabs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"/>
+ -->
+     
+</LinearLayout>    
+    
+</TabHost>
+    
+</RelativeLayout>

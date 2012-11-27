@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">vpn-client</string>
+    <string name="cmd_hint">Please enter a test command here.</string>
+    
+    <string name="menu_about">关于</string>
+    <string name="menu_exit">退出</string>
+    <string name="btn_ok">确定</string>
+    <string name="btn_restart">重新启动</string>
+    <string name="btn_stop">停止</string>
+    <string name="btn_refresh">刷新</string>
+    <string name="btn_save">保存</string>
+    <string name="btn_cancel">取消</string>
+    <string name="str_addr">网关地址</string>
+    <string name="str_port">端口</string>
+    <string name="str_algo">算法选择</string>
+        
+    <string name="tab_logs">状态</string>
+    <string name="tab_stat">统计</string>
+    <string name="tab_conf">配置</string>
+    
+    <string name="about_msg">VPN Client 1.0\n\nCopyright by NARI 2012</string>
+    <string name="login_msg">请输入密码卡口令</string>
+    <string name="exit_msg">确定要退出安全客户端？</string>
+
+    <string name="str_stat_login_tm">登陆时间：%1$s\n\n</string>
+    <string name="str_stat_up_flow">已上传流量：%1$d bytes\n\n</string>
+    <string name="str_stat_dw_flow">已下载流量：%1$d bytes\n\n</string>
+
+	<string-array name="algorithms">
+	    <item>SSL_ECC_SM1_SHA1</item>
+	    <item>SSL_ECC_SM1_SM3</item>
+	    <item>SSL_RSA_SM1_SHA1</item>
+	    <item>SSL_RSA_SM1_SM3</item>
+	    <item>SSL_ECDHE_SM1_SHA1</item>
+	    <item>SSL_ECDHE_SM1_SM3</item>
+	    <item>SSL_ECC_AES_SHA1</item>
+	    <item>SSL_ECC_AES_SM3</item>
+	    <item>SSL_RSA_AES_SHA1</item>
+	    <item>SSL_RSA_AES_SM3</item>
+	    <item>SSL_ECDHE_AES_SHA1</item>
+	    <item>SSL_ECDHE_AES_SM3</item>
+	</string-array>
+
+</resources>
