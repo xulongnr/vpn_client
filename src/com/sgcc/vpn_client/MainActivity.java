@@ -11,11 +11,15 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.net.Socket;
+import java.net.UnknownHostException;
 
 import android.app.AlertDialog;
 import android.app.TabActivity;
 import android.content.DialogInterface;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.Menu;
@@ -31,115 +35,19 @@ import android.widget.TabHost.OnTabChangeListener;
 import android.widget.TabHost.TabSpec;
 import android.widget.TextView;
 
+import com.sgcc.vpn_client.util.Notifications;
+
 @SuppressWarnings("deprecation")
 public class MainActivity extends TabActivity {
 
 	private final static String TAG = "MainActivity";
+	private final int NOTIFICATION_VPN_CLIENT = 65000;
+
 	private TabHost tabHost;
 	private String szLastCmd;
 	private int tabNameIDs[] = { R.string.tab_logs, R.string.tab_stat,
 			R.string.tab_conf };
 	private int tabContentIDs[] = { R.id.tab_logs, R.id.tab_stat, R.id.tab_conf };
-
-	protected void exitWithAlertDialog() {
-		new AlertDialog.Builder(this)
-				.setMessage(getString(R.string.exit_msg))
-				.setIcon(android.R.drawable.ic_dialog_alert)
-				.setPositiveButton(getString(R.string.btn_ok),
-						new DialogInterface.OnClickListener() {
-							@Override
-							public void onClick(DialogInterface dialog,
-									int which) {
-								// TODO: entrance of exit
-								finish();
-							}
-						})
-				.setNegativeButton(getString(R.string.btn_cancel),
-						new DialogInterface.OnClickListener() {
-							@Override
-							public void onClick(DialogInterface dialog,
-									int which) {
-								dialog.dismiss();
-							}
-						}).create().show();
-	}
-
-	protected boolean getConfig() {
-		EditText etAddr = (EditText) findViewById(R.id.txt_addr);
-		EditText etPort = (EditText) findViewById(R.id.txt_port);
-		Spinner spAlgo = (Spinner) findViewById(R.id.spin_algo);
-
-		String pkgDirString = getCacheDir().getParent().toString();
-		String confFilePath = pkgDirString + File.separator + "config.txt";
-		File cfgFile = new File(confFilePath);
-		InputStream is;
-		String line, connect, ciphers;
-		try {
-			is = new FileInputStream(cfgFile);
-			BufferedReader br = new BufferedReader(new InputStreamReader(is));
-			while ((line = br.readLine()) != null) {
-				if (line.contains("connect")) {
-					connect = line.substring(line.indexOf('=') + 1).trim();
-					Log.d(TAG, "connect = " + connect);
-					int sep = connect.indexOf(':');
-					etAddr.setText(connect.substring(0, sep).trim());
-					etPort.setText(connect.substring(sep + 1).trim());
-
-				} else if (line.contains("ciphers")) {
-					ciphers = line.substring(line.indexOf('=') + 1).trim();
-					Log.d(TAG, "ciphers = " + ciphers);
-					String[] selections = getResources().getStringArray(
-							R.array.algorithms);
-					int cipher_id = 0;
-					for (int i = 0; i < selections.length; i++) {
-						if (selections[i].equalsIgnoreCase(ciphers)) {
-							cipher_id = i;
-							break;
-						}
-					}
-					spAlgo.setSelection(cipher_id);
-				}
-			}
-			is.close();
-			return true;
-
-		} catch (FileNotFoundException e) {
-			Log.e(TAG, "File " + confFilePath + " not found error.");
-			e.printStackTrace();
-			new AlertDialog.Builder(this).setMessage(
-					"Config file doesn't exist!").show();
-			return false;
-		} catch (IOException e) {
-			e.printStackTrace();
-			return false;
-		}
-	}
-
-	protected void loginDialog() {
-		final EditText input = new EditText(this);
-		new AlertDialog.Builder(this)
-				.setMessage(getString(R.string.login_msg))
-				.setView(input)
-				.setPositiveButton(getString(R.string.btn_ok),
-						new DialogInterface.OnClickListener() {
-							@Override
-							public void onClick(DialogInterface dialog,
-									int which) {
-								// TODO Auto-generated method stub
-								dialog.dismiss();
-							}
-						})
-				.setNegativeButton(getString(R.string.menu_exit),
-						new DialogInterface.OnClickListener() {
-							@Override
-							public void onClick(DialogInterface dialog,
-									int which) {
-								// TODO Auto-generated method stub
-								finish();
-							}
-						}).show();
-
-	}
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -151,10 +59,6 @@ public class MainActivity extends TabActivity {
 
 		// pop up login dialog
 		loginDialog();
-
-		// put default path here for test, to be removed later
-		((EditText) findViewById(R.id.in_cmd)).setText(SystemCommands.APP_PATH
-				+ File.separator + "vpn-client");
 
 		// get configs from config.txt
 		getConfig();
@@ -205,7 +109,7 @@ public class MainActivity extends TabActivity {
 				refreshStat();
 			}
 		});
-		refreshStat();
+		// refreshStat();
 
 		/*
 		 * ********** RESTART ***********
@@ -214,6 +118,7 @@ public class MainActivity extends TabActivity {
 		btn.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
+				startService();
 			}
 		});
 
@@ -224,6 +129,7 @@ public class MainActivity extends TabActivity {
 		btn.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
+				stopService();
 			}
 		});
 
@@ -234,7 +140,13 @@ public class MainActivity extends TabActivity {
 		btn.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				saveConfig();
+				boolean ret = saveConfig();
+				if (ret) {
+					new AlertDialog.Builder(MainActivity.this)
+							.setMessage(getString(R.string.save_ok_msg))
+							.setPositiveButton(getString(R.string.btn_ok), null)
+							.create().show();
+				}
 				getConfig();
 			}
 		});
@@ -285,6 +197,12 @@ public class MainActivity extends TabActivity {
 	}
 
 	@Override
+	public void onDestroy() {
+		Log.d(TAG, "onDestroy");
+		super.onDestroy();
+	}
+
+	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
 		// Inflate the menu; this adds items to the action bar if it is present.
 		getMenuInflater().inflate(R.menu.activity_main, menu);
@@ -292,10 +210,54 @@ public class MainActivity extends TabActivity {
 
 	}
 
-	@Override
-	public void onDestroy() {
-		Log.d(TAG, "onDestroy");
-		super.onDestroy();
+	protected void exitWithAlertDialog() {
+		new AlertDialog.Builder(this)
+				.setMessage(getString(R.string.exit_msg))
+				.setIcon(android.R.drawable.ic_dialog_alert)
+				.setPositiveButton(getString(R.string.btn_ok),
+						new DialogInterface.OnClickListener() {
+							@Override
+							public void onClick(DialogInterface dialog,
+									int which) {
+								// TODO: entrance of exit
+								stopService();
+								finish();
+							}
+						})
+				.setNegativeButton(getString(R.string.btn_cancel),
+						new DialogInterface.OnClickListener() {
+							@Override
+							public void onClick(DialogInterface dialog,
+									int which) {
+								dialog.dismiss();
+							}
+						}).create().show();
+	}
+
+	protected void loginDialog() {
+		final EditText input = new EditText(this);
+		new AlertDialog.Builder(this)
+				.setMessage(getString(R.string.login_msg))
+				.setView(input)
+				.setPositiveButton(getString(R.string.btn_ok),
+						new DialogInterface.OnClickListener() {
+							@Override
+							public void onClick(DialogInterface dialog,
+									int which) {
+								// TODO Auto-generated method stub
+								dialog.dismiss();
+							}
+						})
+				.setNegativeButton(getString(R.string.menu_exit),
+						new DialogInterface.OnClickListener() {
+							@Override
+							public void onClick(DialogInterface dialog,
+									int which) {
+								// TODO Auto-generated method stub
+								finish();
+							}
+						}).show();
+
 	}
 
 	@Override
@@ -341,13 +303,121 @@ public class MainActivity extends TabActivity {
 		return super.onOptionsItemSelected(item);
 	}
 
-	protected void refreshStat() {
-		TextView tv = (TextView) findViewById(R.id.tv_stat);
+	private class terminal_state {
+		byte[] login_time = new byte[20];
+		byte[] logout_time = new byte[20];
+		byte[] up_flow = new byte[4];
+		byte[] down_flow = new byte[4];
+	}
 
-		tv.append(String.format(getString(R.string.str_stat_login_tm),
-				"12:00:00"));
-		tv.append(String.format(getString(R.string.str_stat_up_flow), 0));
-		tv.append(String.format(getString(R.string.str_stat_dw_flow), 0));
+	private Handler statHandler = new Handler() {
+		@Override
+		public void handleMessage(Message msg) {
+			super.handleMessage(msg);
+			// Deal with UI changes
+			TextView tv = (TextView) findViewById(R.id.tv_stat);
+			tv.setText(String.format(getString(R.string.str_stat_login_tm),
+					"12:00:00"));
+			tv.append(String.format(getString(R.string.str_stat_up_flow), 0));
+			tv.append(String.format(getString(R.string.str_stat_dw_flow), 0));
+		}
+	};
+
+	protected void refreshStat() {
+		new Thread() {
+			@Override
+			public void run() {
+				try {
+					Socket socket = new Socket("127.0.0.1", 60702);
+					OutputStream os = socket.getOutputStream();
+					// BufferedWriter bw = new BufferedWriter(new
+					// OutputStreamWriter(os));
+					byte[] b = new byte[4];
+					b[1] = 0x04;
+					b[3] = 0x00;
+					os.write(b);
+					os.flush();
+					InputStream is = socket.getInputStream();
+					terminal_state ts = new terminal_state();
+					int size = 48;
+					b = new byte[size];
+					is.read(b, 0, size);
+					Log.d(TAG, "output" + ts.login_time + ", " + ts.up_flow
+							+ ", " + ts.down_flow);
+
+				} catch (UnknownHostException e) {
+					e.printStackTrace();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+
+				statHandler.sendEmptyMessage(0);
+			}
+		}.start();
+	}
+
+	protected String getConfigItem(String argumemt) {
+		String pkgDirString = getCacheDir().getParent().toString(), line, arg, opt;
+		String confFilePath = pkgDirString + File.separator + "config.txt";
+		File cfgFile = new File(confFilePath);
+		InputStream is;
+		try {
+			is = new FileInputStream(cfgFile);
+			BufferedReader br = new BufferedReader(new InputStreamReader(is));
+			while ((line = br.readLine()) != null) {
+				int sep = line.indexOf('=');
+				if (sep == -1) {
+					continue;
+				}
+				arg = line.substring(0, sep - 1).trim();
+				Log.v(TAG, "checking arg: " + arg);
+				if (arg.equalsIgnoreCase(argumemt)) {
+					opt = line.substring(line.indexOf('=') + 1).trim();
+					Log.v(TAG, "matched arg, opt = " + opt);
+					br.close();
+					return opt;
+				}
+			}
+			br.close();
+		} catch (FileNotFoundException e) {
+			Log.e(TAG, "File " + confFilePath + " not found error.");
+			e.printStackTrace();
+			new AlertDialog.Builder(this).setMessage(
+					"Config file doesn't exist!").show();
+			return null;
+		} catch (IOException e) {
+			e.printStackTrace();
+			return null;
+		}
+		return null;
+	}
+
+	protected void getConfig() {
+		EditText etAddr = (EditText) findViewById(R.id.txt_addr);
+		EditText etPort = (EditText) findViewById(R.id.txt_port);
+		Spinner spAlgo = (Spinner) findViewById(R.id.spin_algo);
+
+		String connect = getConfigItem("connect");
+		if (connect != null) {
+			Log.d(TAG, "connect = " + connect);
+			int sep = connect.indexOf(':');
+			etAddr.setText(connect.substring(0, sep).trim());
+			etPort.setText(connect.substring(sep + 1).trim());
+		}
+		String cipher = getConfigItem("ciphers");
+		if (cipher != null) {
+			Log.d(TAG, "ciphers = " + cipher);
+			String[] selections = getResources().getStringArray(
+					R.array.algorithms);
+			int cipher_id = 0;
+			for (int i = 0; i < selections.length; i++) {
+				if (selections[i].equalsIgnoreCase(cipher)) {
+					cipher_id = i;
+					break;
+				}
+			}
+			spAlgo.setSelection(cipher_id);
+		}
 	}
 
 	protected boolean saveConfig() {
@@ -416,5 +486,42 @@ public class MainActivity extends TabActivity {
 			e.printStackTrace();
 			return false;
 		}
+	}
+
+	protected void startService() {
+		String cmd = SystemCommands.APP_PATH + File.separator + "vpn-client"
+				+ " " + SystemCommands.APP_PATH + File.separator + "config.txt";
+		String ret = SystemCommands.executeCommnad(cmd);
+		if (ret == "") {
+			try {
+				InputStream is = new FileInputStream(new File(
+						getConfigItem("output")));
+				BufferedReader bReader = new BufferedReader(
+						new InputStreamReader(is));
+				String line;
+				try {
+					while ((line = bReader.readLine()) != null) {
+						ret += line + "\n";
+					}
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			} catch (FileNotFoundException e) {
+				e.printStackTrace();
+			}
+
+		}
+		((TextView) findViewById(R.id.tv_logs)).setText(ret);
+		Notifications.showNotification(this, getString(R.string.app_name),
+				"VPN Client is running.", NOTIFICATION_VPN_CLIENT);
+	}
+
+	protected void stopService() {
+		Notifications.clearNotification(this, NOTIFICATION_VPN_CLIENT);
+	}
+
+	protected void restartService() {
+		stopService();
+		startService();
 	}
 }

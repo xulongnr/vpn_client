@@ -23,6 +23,7 @@
     <string name="about_msg">VPN Client 1.0\n\nCopyright by NARI 2012</string>
     <string name="login_msg">请输入密码卡口令</string>
     <string name="exit_msg">确定要退出安全客户端？</string>
+    <string name="save_ok_msg">配置保存成功。</string>
 
     <string name="str_stat_login_tm">登陆时间：%1$s\n\n</string>
     <string name="str_stat_up_flow">已上传流量：%1$d bytes\n\n</string>

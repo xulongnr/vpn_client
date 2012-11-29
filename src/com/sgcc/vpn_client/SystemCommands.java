@@ -19,8 +19,9 @@ public final class SystemCommands {
 
 	protected static boolean copyFileAndChmod(AssetManager am, String src_path,
 			String tgt_path, String mode) {
-		if (null == mode)
+		if (null == mode) {
 			mode = "755";
+		}
 		// Log.v(TAG, "src=" + src_path + ", target=" + tgt_path);
 		try {
 			InputStream is = am.open(src_path);
@@ -42,10 +43,12 @@ public final class SystemCommands {
 				fos.write(b, 0, len);
 			}
 			fos.flush();
-			if (null != is)
+			if (null != is) {
 				is.close();
-			if (null != fos)
+			}
+			if (null != fos) {
 				fos.close();
+			}
 			return true;
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -61,8 +64,9 @@ public final class SystemCommands {
 			String toString = APP_PATH + File.separator + filename;
 
 			// skip config file
-			if (filename == "config.txt" && new File(toString).exists())
+			if (filename == "config.txt" && new File(toString).exists()) {
 				continue;
+			}
 
 			Log.v(TAG, "copying " + filename + " to " + toString);
 			copyFileAndChmod(am, filename, toString, "755");
@@ -107,13 +111,15 @@ public final class SystemCommands {
 			while ((line = buffer_err.readLine()) != null) {
 				result += line + "\n";
 			}
-			if (result != "")
+			if (result != "") {
 				return result;
+			}
 			while ((line = buffer_out.readLine()) != null) {
 				result += line + "\n";
 			}
-			if (result != "")
+			if (result != "") {
 				return result;
+			}
 		} catch (Throwable t) {
 			t.printStackTrace();
 			return null;
@@ -123,8 +129,9 @@ public final class SystemCommands {
 
 	protected static ArrayList<String> getAssetsFileList(AssetManager am,
 			String path) {
-		if (null == path)
+		if (null == path) {
 			path = "";
+		}
 
 		ArrayList<String> arrayList = new ArrayList<String>();
 		try {
@@ -145,8 +152,9 @@ public final class SystemCommands {
 
 	protected static boolean isValidCert(String filename) {
 		filename = filename.toLowerCase();
-		if (filename.endsWith(".pem") || filename.endsWith("key"))
+		if (filename.endsWith(".pem") || filename.endsWith("key")) {
 			return true;
+		}
 
 		return false;
 	}
