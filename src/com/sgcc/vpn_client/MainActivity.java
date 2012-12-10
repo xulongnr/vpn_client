@@ -17,6 +17,7 @@ import java.net.UnknownHostException;
 import android.app.AlertDialog;
 import android.app.TabActivity;
 import android.content.DialogInterface;
+import android.content.res.Configuration;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -43,7 +44,6 @@ public class MainActivity extends TabActivity {
 	private final static String TAG = "MainActivity";
 	private final int NOTIFICATION_VPN_CLIENT = 65000;
 
-	private TabHost tabHost;
 	private String szLastCmd;
 	private int tabNameIDs[] = { R.string.tab_logs, R.string.tab_stat,
 			R.string.tab_conf };
@@ -51,8 +51,10 @@ public class MainActivity extends TabActivity {
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
+		Log.v(TAG, "onCreate().");
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
+		setupViews();
 
 		// copy shell binary, config and certs
 		SystemCommands.copyFilesFromAssets(getAssets());
@@ -62,144 +64,20 @@ public class MainActivity extends TabActivity {
 
 		// get configs from config.txt
 		getConfig();
-
-		tabHost = getTabHost();
-		for (int i = 0; i < tabNameIDs.length; i++) {
-			String tabName = getString(tabNameIDs[i]);
-			TabSpec tabSpec = tabHost.newTabSpec(tabName).setIndicator(tabName)
-					.setContent(tabContentIDs[i]);
-			tabHost.addTab(tabSpec);
-		}
-		tabHost.setCurrentTab(0);
-
-		tabHost.setOnTabChangedListener(new OnTabChangeListener() {
-			@Override
-			public void onTabChanged(String tabId) {
-				for (int i = 0; i < tabNameIDs.length; i++) {
-					if (tabId.equalsIgnoreCase(getString(tabNameIDs[i]))) {
-						showLayer(tabContentIDs[i]);
-						break;
-					}
-				}
-			}
-
-			// TODO Add tab change related code here
-			private void showLayer(int idLayer) {
-				LinearLayout layout;
-				int layers[] = { R.id.tab_logs, R.id.tab_stat, R.id.tab_conf };
-				for (int i = 0; i < layers.length; i++) {
-					layout = (LinearLayout) findViewById(layers[i]);
-					if (layers[i] == idLayer) {
-						layout.setVisibility(View.VISIBLE);
-					} else {
-						layout.setVisibility(View.GONE);
-					}
-				}
-			}
-		});
-
-		// TODO: Add code for buttons here
-		/*
-		 * ********** REFRESH ***********
-		 */
-		Button btn = (Button) findViewById(R.id.btn_refresh);
-		btn.setOnClickListener(new View.OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				refreshStat();
-			}
-		});
-		// refreshStat();
-
-		/*
-		 * ********** RESTART ***********
-		 */
-		btn = (Button) findViewById(R.id.btn_restart);
-		btn.setOnClickListener(new View.OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				startService();
-			}
-		});
-
-		/*
-		 * ********** STOP ***********
-		 */
-		btn = (Button) findViewById(R.id.btn_stop);
-		btn.setOnClickListener(new View.OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				stopService();
-			}
-		});
-
-		/*
-		 * ********** CONFIG SAVE ***********
-		 */
-		btn = (Button) findViewById(R.id.btn_save);
-		btn.setOnClickListener(new View.OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				boolean ret = saveConfig();
-				if (ret) {
-					new AlertDialog.Builder(MainActivity.this)
-							.setMessage(getString(R.string.save_ok_msg))
-							.setPositiveButton(getString(R.string.btn_ok), null)
-							.create().show();
-				}
-				getConfig();
-			}
-		});
-
-		/*
-		 * ********** CONFIG REVERT ***********
-		 */
-		btn = (Button) findViewById(R.id.btn_cancel);
-		btn.setOnClickListener(new View.OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				getConfig();
-			}
-		});
-
-		// for test purpose
-		final EditText in_cmd = (EditText) findViewById(R.id.in_cmd);
-		in_cmd.setOnKeyListener(new OnKeyListener() {
-			@Override
-			public boolean onKey(View v, int keyCode, KeyEvent event) {
-				String cmdString = in_cmd.getText().toString();
-
-				if (keyCode == KeyEvent.KEYCODE_VOLUME_UP
-						&& event.getAction() == KeyEvent.ACTION_DOWN) {
-					((EditText) findViewById(R.id.in_cmd)).setText(szLastCmd);
-					return true;
-				}
-
-				if (keyCode == KeyEvent.KEYCODE_ENTER
-						&& event.getAction() == KeyEvent.ACTION_DOWN) {
-					String resultString = "#" + cmdString + "\n";
-					szLastCmd = cmdString;
-					resultString += SystemCommands.executeCommnad(cmdString);
-					((EditText) findViewById(R.id.in_cmd)).setText("");
-					((TextView) findViewById(R.id.tv_logs))
-							.setText(resultString);
-					return true;
-				}
-
-				/*
-				 * if (keyCode == KeyEvent.KEYCODE_DEL && event.getAction() ==
-				 * KeyEvent.ACTION_DOWN) { ((TextView)
-				 * findViewById(R.id.in_cmd)).setText(""); return true; }
-				 */
-				return false;
-			}
-		});
 	}
 
 	@Override
 	public void onDestroy() {
-		Log.d(TAG, "onDestroy");
+		Log.d(TAG, "onDestroy().");
 		super.onDestroy();
+	}
+
+	@Override
+	public void onConfigurationChanged(Configuration newConfig) {
+		Log.v(TAG, "onConfigurationChanged().");
+		super.onConfigurationChanged(newConfig);
+		// TODO: add code for config changes here
+
 	}
 
 	@Override
@@ -396,6 +274,8 @@ public class MainActivity extends TabActivity {
 		EditText etAddr = (EditText) findViewById(R.id.txt_addr);
 		EditText etPort = (EditText) findViewById(R.id.txt_port);
 		Spinner spAlgo = (Spinner) findViewById(R.id.spin_algo);
+		EditText etTMS = (EditText) findViewById(R.id.txt_times);
+		EditText etINT = (EditText) findViewById(R.id.txt_interval);
 
 		String connect = getConfigItem("connect");
 		if (connect != null) {
@@ -413,10 +293,19 @@ public class MainActivity extends TabActivity {
 			for (int i = 0; i < selections.length; i++) {
 				if (selections[i].equalsIgnoreCase(cipher)) {
 					cipher_id = i;
+
 					break;
 				}
 			}
 			spAlgo.setSelection(cipher_id);
+		}
+		String rec_times = getConfigItem("RECONNECTtimes");
+		if (rec_times != null) {
+			etTMS.setText(rec_times);
+		}
+		String rec_interval = getConfigItem("RECONNECTtimeinterval");
+		if (rec_interval != null) {
+			etINT.setText(rec_interval);
 		}
 	}
 
@@ -523,5 +412,139 @@ public class MainActivity extends TabActivity {
 	protected void restartService() {
 		stopService();
 		startService();
+	}
+
+	protected void setupViews() {
+		TabHost tabHost = getTabHost();
+		for (int i = 0; i < tabNameIDs.length; i++) {
+			String tabName = getString(tabNameIDs[i]);
+			TabSpec tabSpec = tabHost.newTabSpec(tabName).setIndicator(tabName)
+					.setContent(tabContentIDs[i]);
+			tabHost.addTab(tabSpec);
+		}
+		tabHost.setCurrentTab(0);
+
+		tabHost.setOnTabChangedListener(new OnTabChangeListener() {
+			@Override
+			public void onTabChanged(String tabId) {
+				for (int i = 0; i < tabNameIDs.length; i++) {
+					if (tabId.equalsIgnoreCase(getString(tabNameIDs[i]))) {
+						showLayer(tabContentIDs[i]);
+						break;
+					}
+				}
+			}
+
+			// TODO Add tab change related code here
+			private void showLayer(int idLayer) {
+				LinearLayout layout;
+				int layers[] = { R.id.tab_logs, R.id.tab_stat, R.id.tab_conf };
+				for (int i = 0; i < layers.length; i++) {
+					layout = (LinearLayout) findViewById(layers[i]);
+					if (layers[i] == idLayer) {
+						layout.setVisibility(View.VISIBLE);
+					} else {
+						layout.setVisibility(View.GONE);
+					}
+				}
+			}
+		});
+
+		// TODO: Add code for buttons here
+		/*
+		 * ********** REFRESH ***********
+		 */
+		Button btn = (Button) findViewById(R.id.btn_refresh);
+		btn.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				refreshStat();
+			}
+		});
+		// refreshStat();
+
+		/*
+		 * ********** RESTART ***********
+		 */
+		btn = (Button) findViewById(R.id.btn_restart);
+		btn.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				startService();
+			}
+		});
+
+		/*
+		 * ********** STOP ***********
+		 */
+		btn = (Button) findViewById(R.id.btn_stop);
+		btn.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				stopService();
+			}
+		});
+
+		/*
+		 * ********** CONFIG SAVE ***********
+		 */
+		btn = (Button) findViewById(R.id.btn_save);
+		btn.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				boolean ret = saveConfig();
+				if (ret) {
+					new AlertDialog.Builder(MainActivity.this)
+							.setMessage(getString(R.string.save_ok_msg))
+							.setPositiveButton(getString(R.string.btn_ok), null)
+							.create().show();
+				}
+				getConfig();
+			}
+		});
+
+		/*
+		 * ********** CONFIG REVERT ***********
+		 */
+		btn = (Button) findViewById(R.id.btn_cancel);
+		btn.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				getConfig();
+			}
+		});
+
+		// for test purpose
+		final EditText in_cmd = (EditText) findViewById(R.id.in_cmd);
+		in_cmd.setOnKeyListener(new OnKeyListener() {
+			@Override
+			public boolean onKey(View v, int keyCode, KeyEvent event) {
+				String cmdString = in_cmd.getText().toString();
+
+				if (keyCode == KeyEvent.KEYCODE_VOLUME_UP
+						&& event.getAction() == KeyEvent.ACTION_DOWN) {
+					((EditText) findViewById(R.id.in_cmd)).setText(szLastCmd);
+					return true;
+				}
+
+				if (keyCode == KeyEvent.KEYCODE_ENTER
+						&& event.getAction() == KeyEvent.ACTION_DOWN) {
+					String resultString = "#" + cmdString + "\n";
+					szLastCmd = cmdString;
+					resultString += SystemCommands.executeCommnad(cmdString);
+					((EditText) findViewById(R.id.in_cmd)).setText("");
+					((TextView) findViewById(R.id.tv_logs))
+							.setText(resultString);
+					return true;
+				}
+
+				/*
+				 * if (keyCode == KeyEvent.KEYCODE_DEL && event.getAction() ==
+				 * KeyEvent.ACTION_DOWN) { ((TextView)
+				 * findViewById(R.id.in_cmd)).setText(""); return true; }
+				 */
+				return false;
+			}
+		});
 	}
 }
