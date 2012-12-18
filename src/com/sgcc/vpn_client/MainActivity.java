@@ -70,7 +70,9 @@ public class MainActivity extends TabActivity {
 		SystemCommands.copyFilesFromAssets(getAssets());
 
 		// pop up login dialog
-		loginDialog();
+		if (-1 == getPID()) {
+			loginDialog();
+		}
 
 		// get configs from config.txt
 		getConfig();
@@ -365,6 +367,8 @@ public class MainActivity extends TabActivity {
 	protected void stopService() {
 		long pid = getPID();
 		if (pid == -1) {
+			Toast.makeText(this, R.string.not_yet_started_msg,
+					Toast.LENGTH_SHORT).show();
 			return;
 		}
 

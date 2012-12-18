@@ -29,6 +29,7 @@
     <string name="revert_msg">取消修改并读取原配置。</string>
     <string name="start_msg">服务已启动。</string>
     <string name="stop_msg">服务已停止。</string>
+    <string name="not_yet_started_msg">服务尚未启动。</string>
 
     <string name="str_stat_login_tm">登陆时间：%1$s\n\n</string>
     <string name="str_stat_up_flow">已上传流量：%1$d bytes\n\n</string>
