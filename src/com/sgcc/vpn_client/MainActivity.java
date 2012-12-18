@@ -17,6 +17,7 @@ import android.content.res.Configuration;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.Menu;
@@ -42,6 +43,7 @@ public class MainActivity extends TabActivity {
 
 	private final static String TAG = "MainActivity";
 	private final int NOTIFICATION_VPN_CLIENT = 65000;
+	private final Handler mHandler = new Handler();
 
 	private String szLastCmd;
 	private int tabNameIDs[] = { R.string.tab_logs, R.string.tab_stat,
@@ -107,7 +109,7 @@ public class MainActivity extends TabActivity {
 							public void onClick(DialogInterface dialog,
 									int which) {
 								// TODO: entrance of exit
-								stopService();
+								mHandler.post(stopService);
 								finish();
 							}
 						})
@@ -132,7 +134,8 @@ public class MainActivity extends TabActivity {
 							public void onClick(DialogInterface dialog,
 									int which) {
 								// TODO: Add authentication code here
-								startService();
+								dialog.dismiss();
+								mHandler.post(startService);
 							}
 						})
 				.setNegativeButton(getString(R.string.menu_exit),
@@ -144,7 +147,6 @@ public class MainActivity extends TabActivity {
 								finish();
 							}
 						}).show();
-
 	}
 
 	@Override
@@ -328,61 +330,77 @@ public class MainActivity extends TabActivity {
 		return ret;
 	}
 
-	protected void startService() {
-		String cmd = SystemCommands.APP_PATH + File.separator + "vpn-client"
-				+ " " + SystemCommands.APP_PATH + File.separator
-				+ CONF_FILENAME;
-		String ret = SystemCommands.executeCommnad(cmd);
-		if (ret == "") {
-			try {
-				String logfile = getConfigItem(CONF_OUTPUT);
-				Log.v(TAG, "log file is " + logfile);
-				File file = new File(logfile);
-				if (file.exists()) {
-					String logs = FileUtils.readFileToString(file);
-					ret = logs;
+	private final Runnable startService = new Runnable() {
+		@Override
+		public void run() {
+			String cmd = SystemCommands.APP_PATH + File.separator
+					+ "vpn-client" + " " + SystemCommands.APP_PATH
+					+ File.separator + CONF_FILENAME;
+			String ret = SystemCommands.executeCommnad(cmd);
+			if (ret == "") {
+				try {
+					String logfile = getConfigItem(CONF_OUTPUT);
+					// Log.v(TAG, "log file is " + logfile);
+					File file = new File(logfile);
+					if (file.exists()) {
+						String logs = FileUtils.readFileToString(file);
+						ret = logs;
+					}
+				} catch (IOException e) {
+					e.printStackTrace();
 				}
+			}
+
+			SystemClock.sleep(1500); // wait for daemon to catch up
+			long pid = getPID();
+			if (pid == -1) {
+				Log.e(TAG, "quit startService while getpid = " + pid);
+				return;
+			}
+
+			Toast.makeText(MainActivity.this, R.string.start_msg,
+					Toast.LENGTH_SHORT).show();
+			TextView tvLogs = (TextView) findViewById(R.id.tv_logs);
+			tvLogs.setText(ret);
+			Notifications.showNotification(MainActivity.this,
+					getString(R.string.app_name),
+					getString(R.string.start_msg), NOTIFICATION_VPN_CLIENT);
+		}
+	};
+
+	private final Runnable stopService = new Runnable() {
+		@Override
+		public void run() {
+			long pid = getPID();
+			if (pid == -1) {
+				Toast.makeText(MainActivity.this, R.string.not_yet_started_msg,
+						Toast.LENGTH_SHORT).show();
+				return;
+			}
+
+			SystemCommands.executeCommnad("kill -9 " + String.valueOf(pid));
+			try {
+				FileUtils.forceDelete(new File(getPIDFile()));
 			} catch (IOException e) {
 				e.printStackTrace();
+				Log.e(TAG, " Error on deleting pidfile.");
 			}
-		}
-
-		if (getPID() == -1) {
-			return;
-		}
-
-		Toast.makeText(this, R.string.start_msg, Toast.LENGTH_SHORT).show();
-		TextView tvLogs = (TextView) findViewById(R.id.tv_logs);
-		tvLogs.setText(ret);
-		Notifications.showNotification(this, getString(R.string.app_name),
-				"VPN Client is running.", NOTIFICATION_VPN_CLIENT);
-	}
-
-	protected void stopService() {
-		long pid = getPID();
-		if (pid == -1) {
-			Toast.makeText(this, R.string.not_yet_started_msg,
+			Toast.makeText(MainActivity.this, R.string.stop_msg,
 					Toast.LENGTH_SHORT).show();
-			return;
+			Notifications.clearNotification(MainActivity.this,
+					NOTIFICATION_VPN_CLIENT);
 		}
+	};
 
-		SystemCommands.executeCommnad("kill -9 " + String.valueOf(pid));
-		try {
-			FileUtils.forceDelete(new File(getPIDFile()));
-		} catch (IOException e) {
-			e.printStackTrace();
-			Log.e(TAG, " Error on deleting pidfile.");
+	private final Runnable restartService = new Runnable() {
+		@Override
+		public void run() {
+			if (getPID() != -1) {
+				mHandler.post(stopService);
+			}
+			mHandler.post(startService);
 		}
-		Toast.makeText(this, R.string.stop_msg, Toast.LENGTH_SHORT).show();
-		Notifications.clearNotification(this, NOTIFICATION_VPN_CLIENT);
-	}
-
-	protected void restartService() {
-		if (getPID() != -1) {
-			stopService();
-		}
-		startService();
-	}
+	};
 
 	protected String getPIDFile() {
 		String pkgDirString = getCacheDir().getParent().toString();
@@ -475,7 +493,7 @@ public class MainActivity extends TabActivity {
 		btn.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				restartService();
+				mHandler.post(restartService);
 			}
 		});
 
@@ -486,7 +504,7 @@ public class MainActivity extends TabActivity {
 		btn.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				stopService();
+				mHandler.post(stopService);
 			}
 		});
 
