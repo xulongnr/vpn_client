@@ -1,12 +1,8 @@
 package com.sgcc.vpn_client;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.net.UnknownHostException;
@@ -54,6 +50,7 @@ public class MainActivity extends TabActivity {
 
 	private final static String CONF_FILENAME = "config.txt";
 	private final static String CONF_PIDFILE = "pid";
+	private final static String CONF_OUTPUT = "output";
 	private final static String CONF_CONNECT = "connect";
 	private final static String CONF_CIPHERS = "ciphers";
 	private final static String CONF_REC_TMS = "RECONNECTtimes";
@@ -134,8 +131,8 @@ public class MainActivity extends TabActivity {
 							@Override
 							public void onClick(DialogInterface dialog,
 									int which) {
-								// TODO Auto-generated method stub
-								dialog.dismiss();
+								// TODO: Add authentication code here
+								startService();
 							}
 						})
 				.setNegativeButton(getString(R.string.menu_exit),
@@ -333,23 +330,19 @@ public class MainActivity extends TabActivity {
 
 	protected void startService() {
 		String cmd = SystemCommands.APP_PATH + File.separator + "vpn-client"
-				+ " " + SystemCommands.APP_PATH + File.separator + "config.txt";
+				+ " " + SystemCommands.APP_PATH + File.separator
+				+ CONF_FILENAME;
 		String ret = SystemCommands.executeCommnad(cmd);
 		if (ret == "") {
 			try {
-				InputStream is = new FileInputStream(new File(
-						getConfigItem("output")));
-				BufferedReader bReader = new BufferedReader(
-						new InputStreamReader(is));
-				String line;
-				try {
-					while ((line = bReader.readLine()) != null) {
-						ret += line + "\n";
-					}
-				} catch (IOException e) {
-					e.printStackTrace();
+				String logfile = getConfigItem(CONF_OUTPUT);
+				Log.v(TAG, "log file is " + logfile);
+				File file = new File(logfile);
+				if (file.exists()) {
+					String logs = FileUtils.readFileToString(file);
+					ret = logs;
 				}
-			} catch (FileNotFoundException e) {
+			} catch (IOException e) {
 				e.printStackTrace();
 			}
 		}
@@ -359,7 +352,8 @@ public class MainActivity extends TabActivity {
 		}
 
 		Toast.makeText(this, R.string.start_msg, Toast.LENGTH_SHORT).show();
-		((TextView) findViewById(R.id.tv_logs)).setText(ret);
+		TextView tvLogs = (TextView) findViewById(R.id.tv_logs);
+		tvLogs.setText(ret);
 		Notifications.showNotification(this, getString(R.string.app_name),
 				"VPN Client is running.", NOTIFICATION_VPN_CLIENT);
 	}
@@ -396,7 +390,7 @@ public class MainActivity extends TabActivity {
 		String pidFile;
 		try {
 			pidFile = FileParser.getProfileString(filePath, CONF_PIDFILE);
-			Log.d(TAG, "pidfile = " + pidFile);
+			// Log.v(TAG, "pidfile = " + pidFile);
 		} catch (IOException e) {
 			e.printStackTrace();
 			return null;
@@ -417,7 +411,7 @@ public class MainActivity extends TabActivity {
 
 		try {
 			pid = FileUtils.readFileToString(file).trim();
-			Log.d(TAG, "pid = " + pid);
+			// Log.v(TAG, "pid = " + pid);
 		} catch (IOException e) {
 			e.printStackTrace();
 			return -1;

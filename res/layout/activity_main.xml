@@ -31,10 +31,11 @@
         	
             <EditText android:id="@+id/in_cmd"
                 android:hint="@string/cmd_hint"
-                android:visibility="visible"
+                android:visibility="gone"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" />
             <ScrollView android:layout_weight="1"
+                android:id="@+id/sv_logs"
             	android:layout_width="match_parent"
         		android:layout_height="0dip">
             <TextView android:id="@+id/tv_logs"
