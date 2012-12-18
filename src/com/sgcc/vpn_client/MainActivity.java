@@ -1,21 +1,21 @@
 package com.sgcc.vpn_client;
 
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.OutputStreamWriter;
 import java.net.Socket;
 import java.net.UnknownHostException;
 
+import org.apache.commons.io.FileUtils;
+
 import android.app.AlertDialog;
 import android.app.TabActivity;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.res.Configuration;
 import android.os.Bundle;
@@ -27,6 +27,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnKeyListener;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -35,7 +36,9 @@ import android.widget.TabHost;
 import android.widget.TabHost.OnTabChangeListener;
 import android.widget.TabHost.TabSpec;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import com.sgcc.vpn_client.utils.FileParser;
 import com.sgcc.vpn_client.utils.Notifications;
 
 @SuppressWarnings("deprecation")
@@ -48,6 +51,13 @@ public class MainActivity extends TabActivity {
 	private int tabNameIDs[] = { R.string.tab_logs, R.string.tab_stat,
 			R.string.tab_conf };
 	private int tabContentIDs[] = { R.id.tab_logs, R.id.tab_stat, R.id.tab_conf };
+
+	private final static String CONF_FILENAME = "config.txt";
+	private final static String CONF_PIDFILE = "pid";
+	private final static String CONF_CONNECT = "connect";
+	private final static String CONF_CIPHERS = "ciphers";
+	private final static String CONF_REC_TMS = "RECONNECTtimes";
+	private final static String CONF_REC_INT = "RECONNECTtimeinterval";
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -234,40 +244,33 @@ public class MainActivity extends TabActivity {
 		}.start();
 	}
 
-	protected String getConfigItem(String argumemt) {
-		String pkgDirString = getCacheDir().getParent().toString(), line, arg, opt;
-		String confFilePath = pkgDirString + File.separator + "config.txt";
-		File cfgFile = new File(confFilePath);
-		InputStream is;
+	protected String getConfigItem(String key) {
+		assert key != null;
+		String pkgDirString = getCacheDir().getParent().toString();
+		String filePath = pkgDirString + File.separator + CONF_FILENAME;
+		String value = null;
 		try {
-			is = new FileInputStream(cfgFile);
-			BufferedReader br = new BufferedReader(new InputStreamReader(is));
-			while ((line = br.readLine()) != null) {
-				int sep = line.indexOf('=');
-				if (sep == -1) {
-					continue;
-				}
-				arg = line.substring(0, sep - 1).trim();
-				Log.v(TAG, "checking arg: " + arg);
-				if (arg.equalsIgnoreCase(argumemt)) {
-					opt = line.substring(line.indexOf('=') + 1).trim();
-					Log.v(TAG, "matched arg, opt = " + opt);
-					br.close();
-					return opt;
-				}
-			}
-			br.close();
-		} catch (FileNotFoundException e) {
-			Log.e(TAG, "File " + confFilePath + " not found error.");
-			e.printStackTrace();
-			new AlertDialog.Builder(this).setMessage(
-					"Config file doesn't exist!").show();
-			return null;
+			value = FileParser.getProfileString(filePath, key);
 		} catch (IOException e) {
-			e.printStackTrace();
-			return null;
+			Toast.makeText(this, "Can't read from " + filePath,
+					Toast.LENGTH_SHORT).show();
 		}
-		return null;
+		return value;
+	}
+
+	protected boolean setConfigItem(String key, String value) {
+		assert key != null;
+		assert value != null;
+		String pkgDirString = getCacheDir().getParent().toString();
+		String filePath = pkgDirString + File.separator + CONF_FILENAME;
+		boolean ret = false;
+		try {
+			ret = FileParser.setProfileString(filePath, key, value);
+		} catch (IOException e) {
+			Toast.makeText(this, "Can't read/write " + filePath,
+					Toast.LENGTH_SHORT).show();
+		}
+		return ret;
 	}
 
 	protected void getConfig() {
@@ -277,14 +280,14 @@ public class MainActivity extends TabActivity {
 		EditText etTMS = (EditText) findViewById(R.id.txt_times);
 		EditText etINT = (EditText) findViewById(R.id.txt_interval);
 
-		String connect = getConfigItem("connect");
+		String connect = getConfigItem(CONF_CONNECT);
 		if (connect != null) {
 			Log.d(TAG, "connect = " + connect);
 			int sep = connect.indexOf(':');
 			etAddr.setText(connect.substring(0, sep).trim());
 			etPort.setText(connect.substring(sep + 1).trim());
 		}
-		String cipher = getConfigItem("ciphers");
+		String cipher = getConfigItem(CONF_CIPHERS);
 		if (cipher != null) {
 			Log.d(TAG, "ciphers = " + cipher);
 			String[] selections = getResources().getStringArray(
@@ -299,11 +302,11 @@ public class MainActivity extends TabActivity {
 			}
 			spAlgo.setSelection(cipher_id);
 		}
-		String rec_times = getConfigItem("RECONNECTtimes");
+		String rec_times = getConfigItem(CONF_REC_TMS);
 		if (rec_times != null) {
 			etTMS.setText(rec_times);
 		}
-		String rec_interval = getConfigItem("RECONNECTtimeinterval");
+		String rec_interval = getConfigItem(CONF_REC_INT);
 		if (rec_interval != null) {
 			etINT.setText(rec_interval);
 		}
@@ -313,68 +316,17 @@ public class MainActivity extends TabActivity {
 		EditText etAddr = (EditText) findViewById(R.id.txt_addr);
 		EditText etPort = (EditText) findViewById(R.id.txt_port);
 		Spinner spAlgo = (Spinner) findViewById(R.id.spin_algo);
+		EditText etTMS = (EditText) findViewById(R.id.txt_times);
+		EditText etINT = (EditText) findViewById(R.id.txt_interval);
+		boolean ret = setConfigItem(CONF_CONNECT, String.format("%s:%s", etAddr
+				.getText().toString(), etPort.getText().toString()));
 
-		String pkgDirString = getCacheDir().getParent().toString();
-		String oldConfFilePath = pkgDirString + File.separator + "config.txt";
-		String newConfFilePath = oldConfFilePath + "~";
-		File oldConfFile = new File(oldConfFilePath);
-		File newConfFile = new File(newConfFilePath);
-		InputStream iStream;
-		OutputStream oStream;
-		String line, connect, ciphers;
-		try {
-			iStream = new FileInputStream(oldConfFile);
-			oStream = new FileOutputStream(newConfFile);
-			BufferedReader br = new BufferedReader(new InputStreamReader(
-					iStream));
-			BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(
-					oStream));
-			while ((line = br.readLine()) != null) {
-				if (line.contains("connect")) {
-					String szAddr = etAddr.getText().toString();
-					String szPort = etPort.getText().toString();
-					connect = String.format("connect = %s:%s", szAddr, szPort);
-					Log.d(TAG, connect);
-					bw.write(connect + "\n");
-
-				} else if (line.contains("ciphers")) {
-					String[] selections = getResources().getStringArray(
-							R.array.algorithms);
-					int cipher_id = (int) spAlgo.getSelectedItemId();
-					Log.d(TAG, "cipher ID = " + cipher_id);
-					ciphers = String.format("ciphers = %s",
-							selections[cipher_id]);
-					Log.d(TAG, ciphers);
-					bw.write(ciphers + "\n");
-
-				} else {
-					bw.write(line + "\n");
-				}
-			}
-			bw.flush();
-			oStream.close();
-			iStream.close();
-			boolean ret;
-			ret = oldConfFile.delete();
-			Log.d(TAG, "deleting " + oldConfFile.getAbsolutePath() + " : "
-					+ ret);
-			ret = newConfFile.renameTo(oldConfFile);
-			Log.d(TAG, "moving " + newConfFile.getAbsolutePath() + " to "
-					+ oldConfFile.getAbsolutePath() + " : " + ret);
-			SystemCommands.executeCommnad("chmod 755 "
-					+ oldConfFile.getAbsolutePath());
-			return true;
-
-		} catch (FileNotFoundException e) {
-			Log.e(TAG, "File " + oldConfFilePath + " not found error.");
-			e.printStackTrace();
-			new AlertDialog.Builder(this).setMessage(
-					"Config file doesn't exist!").show();
-			return false;
-		} catch (IOException e) {
-			e.printStackTrace();
-			return false;
-		}
+		String[] selections = getResources().getStringArray(R.array.algorithms);
+		int cipher_id = (int) spAlgo.getSelectedItemId();
+		ret = ret && setConfigItem(CONF_CIPHERS, selections[cipher_id]);
+		ret = ret && setConfigItem(CONF_REC_TMS, etTMS.getText().toString());
+		ret = ret && setConfigItem(CONF_REC_INT, etINT.getText().toString());
+		return ret;
 	}
 
 	protected void startService() {
@@ -398,20 +350,75 @@ public class MainActivity extends TabActivity {
 			} catch (FileNotFoundException e) {
 				e.printStackTrace();
 			}
-
 		}
+
+		if (getPID() == -1) {
+			return;
+		}
+
+		Toast.makeText(this, R.string.start_msg, Toast.LENGTH_SHORT).show();
 		((TextView) findViewById(R.id.tv_logs)).setText(ret);
 		Notifications.showNotification(this, getString(R.string.app_name),
 				"VPN Client is running.", NOTIFICATION_VPN_CLIENT);
 	}
 
 	protected void stopService() {
+		long pid = getPID();
+		if (pid == -1) {
+			return;
+		}
+
+		SystemCommands.executeCommnad("kill -9 " + String.valueOf(pid));
+		try {
+			FileUtils.forceDelete(new File(getPIDFile()));
+		} catch (IOException e) {
+			e.printStackTrace();
+			Log.e(TAG, " Error on deleting pidfile.");
+		}
+		Toast.makeText(this, R.string.stop_msg, Toast.LENGTH_SHORT).show();
 		Notifications.clearNotification(this, NOTIFICATION_VPN_CLIENT);
 	}
 
 	protected void restartService() {
-		stopService();
+		if (getPID() != -1) {
+			stopService();
+		}
 		startService();
+	}
+
+	protected String getPIDFile() {
+		String pkgDirString = getCacheDir().getParent().toString();
+		String filePath = pkgDirString + File.separator + CONF_FILENAME;
+		String pidFile;
+		try {
+			pidFile = FileParser.getProfileString(filePath, CONF_PIDFILE);
+			Log.d(TAG, "pidfile = " + pidFile);
+		} catch (IOException e) {
+			e.printStackTrace();
+			return null;
+		}
+		return pidFile;
+	}
+
+	protected long getPID() {
+		String pid, pidfile;
+		pidfile = getPIDFile();
+		if (pidfile == null) {
+			return -1;
+		}
+		File file = new File(pidfile);
+		if (!file.exists()) {
+			return -1;
+		}
+
+		try {
+			pid = FileUtils.readFileToString(file).trim();
+			Log.d(TAG, "pid = " + pid);
+		} catch (IOException e) {
+			e.printStackTrace();
+			return -1;
+		}
+		return Long.valueOf(pid);
 	}
 
 	protected void setupViews() {
@@ -470,7 +477,7 @@ public class MainActivity extends TabActivity {
 		btn.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				startService();
+				restartService();
 			}
 		});
 
@@ -492,14 +499,22 @@ public class MainActivity extends TabActivity {
 		btn.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
+				// hide soft keyboard if any
+				InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+				imm.hideSoftInputFromWindow(MainActivity.this.getCurrentFocus()
+						.getWindowToken(), 0);
+
 				boolean ret = saveConfig();
 				if (ret) {
-					new AlertDialog.Builder(MainActivity.this)
-							.setMessage(getString(R.string.save_ok_msg))
-							.setPositiveButton(getString(R.string.btn_ok), null)
-							.create().show();
+					// new AlertDialog.Builder(MainActivity.this)
+					// .setMessage(getString(R.string.save_ok_msg))
+					// .setPositiveButton(getString(R.string.btn_ok), null)
+					// .create().show();
+
+					Toast.makeText(MainActivity.this, R.string.save_ok_msg,
+							Toast.LENGTH_SHORT).show();
+					getConfig();
 				}
-				getConfig();
 			}
 		});
 
@@ -510,6 +525,13 @@ public class MainActivity extends TabActivity {
 		btn.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
+				// hide soft keyboard if any
+				InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+				imm.hideSoftInputFromWindow(MainActivity.this.getCurrentFocus()
+						.getWindowToken(), 0);
+
+				Toast.makeText(MainActivity.this, R.string.revert_msg,
+						Toast.LENGTH_SHORT).show();
 				getConfig();
 			}
 		});
