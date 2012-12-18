@@ -36,7 +36,7 @@ import android.widget.TabHost.OnTabChangeListener;
 import android.widget.TabHost.TabSpec;
 import android.widget.TextView;
 
-import com.sgcc.vpn_client.util.Notifications;
+import com.sgcc.vpn_client.utils.Notifications;
 
 @SuppressWarnings("deprecation")
 public class MainActivity extends TabActivity {

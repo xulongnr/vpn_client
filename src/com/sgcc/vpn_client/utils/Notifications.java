@@ -1,4 +1,4 @@
-package com.sgcc.vpn_client.util;
+package com.sgcc.vpn_client.utils;
 
 import android.app.Notification;
 import android.app.NotificationManager;
