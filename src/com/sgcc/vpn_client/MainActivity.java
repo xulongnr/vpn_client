@@ -1,8 +1,9 @@
 package com.sgcc.vpn_client;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.net.UnknownHostException;
@@ -46,6 +47,8 @@ public class MainActivity extends TabActivity {
 	private final Handler mHandler = new Handler();
 
 	private String szLastCmd;
+	private String szStatInfo;
+
 	private int tabNameIDs[] = { R.string.tab_logs, R.string.tab_stat,
 			R.string.tab_conf };
 	private int tabContentIDs[] = { R.id.tab_logs, R.id.tab_stat, R.id.tab_conf };
@@ -192,23 +195,36 @@ public class MainActivity extends TabActivity {
 		return super.onOptionsItemSelected(item);
 	}
 
-	private class terminal_state {
-		byte[] login_time = new byte[20];
-		byte[] logout_time = new byte[20];
-		byte[] up_flow = new byte[4];
-		byte[] down_flow = new byte[4];
-	}
-
 	private Handler statHandler = new Handler() {
 		@Override
 		public void handleMessage(Message msg) {
 			super.handleMessage(msg);
 			// Deal with UI changes
-			TextView tv = (TextView) findViewById(R.id.tv_stat);
-			tv.setText(String.format(getString(R.string.str_stat_login_tm),
-					"12:00:00"));
-			tv.append(String.format(getString(R.string.str_stat_up_flow), 0));
-			tv.append(String.format(getString(R.string.str_stat_dw_flow), 0));
+			if (szStatInfo == null || szStatInfo == "") {
+				return;
+			}
+
+			String[] info = szStatInfo.split(";");
+			if (info.length == 4) {
+				TextView tv = (TextView) findViewById(R.id.tv_stat);
+				tv.setText(String.format(getString(R.string.str_stat_login_tm),
+						info[0]));
+				tv.append(String.format(getString(R.string.str_stat_up_flow),
+						Long.valueOf(info[1])));
+				tv.append(String.format(getString(R.string.str_stat_dw_flow),
+						Long.valueOf(info[2])));
+				boolean online = false;
+				if (info[3].equals("1")) {
+					online = true;
+				}
+
+				if (getPID() != -1) {
+					Notifications.updateNotification(MainActivity.this,
+							getString(R.string.app_name),
+							getString(R.string.start_msg), online,
+							NOTIFICATION_VPN_CLIENT);
+				}
+			}
 		}
 	};
 
@@ -219,21 +235,12 @@ public class MainActivity extends TabActivity {
 				try {
 					Socket socket = new Socket("127.0.0.1", 60702);
 					OutputStream os = socket.getOutputStream();
-					// BufferedWriter bw = new BufferedWriter(new
-					// OutputStreamWriter(os));
-					byte[] b = new byte[4];
-					b[1] = 0x04;
-					b[3] = 0x00;
-					os.write(b);
+					os.write("cmd001".getBytes());
 					os.flush();
-					InputStream is = socket.getInputStream();
-					terminal_state ts = new terminal_state();
-					int size = 48;
-					b = new byte[size];
-					is.read(b, 0, size);
-					Log.d(TAG, "output" + ts.login_time + ", " + ts.up_flow
-							+ ", " + ts.down_flow);
-
+					BufferedReader br = new BufferedReader(
+							new InputStreamReader(socket.getInputStream()));
+					szStatInfo = br.readLine();
+					Log.v(TAG, szStatInfo);
 				} catch (UnknownHostException e) {
 					e.printStackTrace();
 				} catch (IOException e) {
@@ -381,6 +388,7 @@ public class MainActivity extends TabActivity {
 			SystemCommands.executeCommnad("kill -9 " + String.valueOf(pid));
 			try {
 				FileUtils.forceDelete(new File(getPIDFile()));
+				szStatInfo = "";
 			} catch (IOException e) {
 				e.printStackTrace();
 				Log.e(TAG, " Error on deleting pidfile.");
@@ -522,10 +530,21 @@ public class MainActivity extends TabActivity {
 
 				boolean ret = saveConfig();
 				if (ret) {
-					// new AlertDialog.Builder(MainActivity.this)
-					// .setMessage(getString(R.string.save_ok_msg))
-					// .setPositiveButton(getString(R.string.btn_ok), null)
-					// .create().show();
+					try {
+						Socket socket = new Socket("127.0.0.1", 60702);
+						OutputStream os = socket.getOutputStream();
+						os.write("cmd003".getBytes());
+						os.flush();
+						BufferedReader br = new BufferedReader(
+								new InputStreamReader(socket.getInputStream()));
+						if ("done".equals(br.readLine())) {
+							Log.v(TAG, "Reload config successfully.");
+						}
+					} catch (UnknownHostException e) {
+						e.printStackTrace();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
 
 					Toast.makeText(MainActivity.this, R.string.save_ok_msg,
 							Toast.LENGTH_SHORT).show();

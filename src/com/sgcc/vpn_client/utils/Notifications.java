@@ -24,6 +24,31 @@ public class Notifications {
 
 		NotificationManager mNM = (NotificationManager) context
 				.getSystemService(Context.NOTIFICATION_SERVICE);
+		msg.flags = Notification.FLAG_ONGOING_EVENT;
+		mNM.notify(id, msg);
+	}
+
+	@SuppressWarnings("deprecation")
+	public static void updateNotification(Context context, String title,
+			String content, boolean online, int id) {
+		int icon;
+		String szStatus;
+		if (online) {
+			icon = R.drawable.vpn_client_on;
+			szStatus = context.getString(R.string.online);
+		} else {
+			icon = R.drawable.vpn_client;
+			szStatus = context.getString(R.string.offline);
+		}
+		PendingIntent contentIntent = PendingIntent.getActivity(context, 0,
+				new Intent(context, MainActivity.class), 0);
+		Notification msg = new Notification(icon, null,
+				System.currentTimeMillis());
+		msg.setLatestEventInfo(context, title, content + szStatus,
+				contentIntent);
+		NotificationManager mNM = (NotificationManager) context
+				.getSystemService(Context.NOTIFICATION_SERVICE);
+		msg.flags = Notification.FLAG_ONGOING_EVENT;
 		mNM.notify(id, msg);
 	}
 
