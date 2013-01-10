@@ -239,7 +239,9 @@ public class MainActivity extends TabActivity {
 							@Override
 							public void onClick(DialogInterface dialog,
 									int which) {
-								mHandler.post(stopService);
+								if (getPID() != -1) {
+									mHandler.post(stopService);
+								}
 								finish();
 							}
 						})
