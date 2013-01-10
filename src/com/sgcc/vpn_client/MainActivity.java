@@ -75,13 +75,15 @@ public class MainActivity extends TabActivity {
 	private final static String SOCKET_CMD_STOP = "cmd002";
 	private final static String SOCKET_CMD_RECONF = "cmd003";
 	private final static String SOCKET_CMD_RECONN = "cmd004";
+	private final static String SOCKET_CMD_RENEGO = "cmd005";
 
 	private final static int MSG_STAT = 65001;
 	private final static int MSG_STOP = 65002;
 	private final static int MSG_RECONF = 65003;
 	private final static int MSG_RECONN = 65004;
-	private final static int MSG_START = 65005;
-	private final static int MSG_NOTIFY = 65006;
+	private final static int MSG_RENEGO = 65005;
+	private final static int MSG_START = 65006;
+	private final static int MSG_NOTIFY = 65007;
 
 	private final Handler mHandler = new Handler() {
 		@Override
@@ -105,7 +107,7 @@ public class MainActivity extends TabActivity {
 							getString(R.string.str_stat_dw_flow),
 							Long.valueOf(info[2])));
 					boolean online = false;
-					if (info[3].equals("1")) {
+					if (info[3].equals("1\0")) {
 						online = true;
 					}
 
@@ -133,6 +135,11 @@ public class MainActivity extends TabActivity {
 			case MSG_RECONN:
 				Toast.makeText(MainActivity.this, R.string.reconnect_ok_msg,
 						Toast.LENGTH_SHORT).show();
+				break;
+
+			case MSG_RENEGO:
+				Toast.makeText(MainActivity.this,
+						R.string.renegotiation_ok_msg, Toast.LENGTH_SHORT);
 				break;
 
 			case MSG_START:
@@ -306,6 +313,24 @@ public class MainActivity extends TabActivity {
 	@Override
 	public boolean onOptionsItemSelected(MenuItem item) {
 		switch (item.getItemId()) {
+
+		case R.id.menu_renego:
+			if (getPID() == -1) {
+				Toast.makeText(MainActivity.this, R.string.not_yet_started_msg,
+						Toast.LENGTH_SHORT).show();
+				break;
+			}
+
+			new Thread() {
+				@Override
+				public void run() {
+					String szRet = liteSocket(SOCKET_CMD_RENEGO);
+					if (SOCKET_ACK_OK.equals(szRet)) {
+						mHandler.sendEmptyMessage(MSG_RENEGO);
+					}
+				}
+			}.start();
+			break;
 
 		case R.id.menu_reconn:
 			if (getPID() == -1) {

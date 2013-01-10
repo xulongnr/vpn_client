@@ -1,6 +1,12 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android" >
 
     <item
+        android:id="@+id/menu_renego"
+        android:orderInCategory="98"
+        android:showAsAction="ifRoom|withText"
+        android:title="@string/menu_renego"/>
+    
+    <item
         android:id="@+id/menu_reconn"
         android:orderInCategory="99"
         android:showAsAction="ifRoom|withText"
