@@ -15,11 +15,14 @@ import android.app.TabActivity;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.res.Configuration;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.os.SystemClock;
+import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -33,6 +36,7 @@ import android.widget.Spinner;
 import android.widget.TabHost;
 import android.widget.TabHost.OnTabChangeListener;
 import android.widget.TabHost.TabSpec;
+import android.widget.TabWidget;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -44,10 +48,10 @@ public class MainActivity extends TabActivity {
 
 	private final static String TAG = "MainActivity";
 	private final int NOTIFICATION_VPN_CLIENT = 65000;
-	private final Handler mHandler = new Handler();
 
 	private String szLastCmd;
 	private String szStatInfo;
+	private String szSocketRet;
 
 	private int tabNameIDs[] = { R.string.tab_logs, R.string.tab_stat,
 			R.string.tab_conf };
@@ -55,11 +59,119 @@ public class MainActivity extends TabActivity {
 
 	private final static String CONF_FILENAME = "config.txt";
 	private final static String CONF_PIDFILE = "pid";
-	private final static String CONF_OUTPUT = "output";
+	private final static String CONF_OUTPUT = "output_ch";
 	private final static String CONF_CONNECT = "connect";
 	private final static String CONF_CIPHERS = "ciphers";
+	private final static String CONF_COMPRESS = "compression";
 	private final static String CONF_REC_TMS = "RECONNECTtimes";
 	private final static String CONF_REC_INT = "RECONNECTtimeinterval";
+
+	private final static String SOCKET_IP = "127.0.0.1";
+	private final static int SOCKET_PORT = 60702;
+	private final static String SOCKET_CMD_STAT = "cmd001";
+	private final static String SOCKET_CMD_STOP = "cmd002";
+	private final static String SOCKET_CMD_RECONF = "cmd003";
+	private final static String SOCKET_CMD_RECONN = "cmd004";
+
+	private final static int MSG_STAT = 65001;
+	private final static int MSG_STOP = 65002;
+	private final static int MSG_RECONF = 65003;
+	private final static int MSG_RECONN = 65004;
+	private final static int MSG_START = 65005;
+	private final static int MSG_NOTIFY = 65006;
+
+	private final Handler mHandler = new Handler() {
+		@Override
+		public void handleMessage(Message msg) {
+			super.handleMessage(msg);
+			switch (msg.what) {
+
+			case MSG_STAT:
+				if (szStatInfo == null || szStatInfo == "") {
+					break;
+				}
+				String[] info = szStatInfo.split(";");
+				if (info.length == 4) {
+					TextView tv = (TextView) findViewById(R.id.tv_stat);
+					tv.setText(String.format(
+							getString(R.string.str_stat_login_tm), info[0]));
+					tv.append(String.format(
+							getString(R.string.str_stat_up_flow),
+							Long.valueOf(info[1])));
+					tv.append(String.format(
+							getString(R.string.str_stat_dw_flow),
+							Long.valueOf(info[2])));
+					boolean online = false;
+					if (info[3].equals("1")) {
+						online = true;
+					}
+
+					if (getPID() != -1) {
+						Notifications.updateNotification(MainActivity.this,
+								getString(R.string.app_name),
+								getString(R.string.start_msg), online,
+								NOTIFICATION_VPN_CLIENT);
+					}
+				}
+				break;
+
+			case MSG_STOP:
+				Toast.makeText(MainActivity.this, R.string.stop_msg,
+						Toast.LENGTH_SHORT).show();
+				Notifications.clearNotification(MainActivity.this,
+						NOTIFICATION_VPN_CLIENT);
+				break;
+
+			case MSG_RECONF:
+				Toast.makeText(MainActivity.this, R.string.reload_conf_ok_msg,
+						Toast.LENGTH_SHORT).show();
+				break;
+
+			case MSG_RECONN:
+				Toast.makeText(MainActivity.this, R.string.reconnect_ok_msg,
+						Toast.LENGTH_SHORT).show();
+				break;
+
+			case MSG_START:
+				Toast.makeText(MainActivity.this, R.string.start_msg,
+						Toast.LENGTH_SHORT).show();
+				Notifications.showNotification(MainActivity.this,
+						getString(R.string.app_name),
+						getString(R.string.start_msg), NOTIFICATION_VPN_CLIENT);
+				break;
+
+			case MSG_NOTIFY:
+				if (getPID() != -1) {
+					Notifications.showNotification(MainActivity.this,
+							getString(R.string.app_name),
+							getString(R.string.start_msg),
+							NOTIFICATION_VPN_CLIENT);
+				} else {
+					Notifications.clearNotification(MainActivity.this,
+							NOTIFICATION_VPN_CLIENT);
+				}
+
+				break;
+
+			default:
+			}
+		}
+	};
+
+	Runnable mUpdateState = new Runnable() {
+		@Override
+		public void run() {
+			if (getPID() != -1) {
+				findViewById(R.id.btn_stop).setEnabled(true);
+				refreshStat();
+				refreshLogs();
+			} else {
+				findViewById(R.id.btn_stop).setEnabled(false);
+				mHandler.sendEmptyMessage(MSG_NOTIFY);
+			}
+			mHandler.postDelayed(mUpdateState, 1000);
+		}
+	};
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -68,6 +180,8 @@ public class MainActivity extends TabActivity {
 		setContentView(R.layout.activity_main);
 		setupViews();
 
+		// get app running path
+		SystemCommands.setAppPath(getCacheDir().getParent().toString());
 		// copy shell binary, config and certs
 		SystemCommands.copyFilesFromAssets(getAssets());
 
@@ -78,6 +192,8 @@ public class MainActivity extends TabActivity {
 
 		// get configs from config.txt
 		getConfig();
+
+		mHandler.post(mUpdateState);
 	}
 
 	@Override
@@ -111,7 +227,6 @@ public class MainActivity extends TabActivity {
 							@Override
 							public void onClick(DialogInterface dialog,
 									int which) {
-								// TODO: entrance of exit
 								mHandler.post(stopService);
 								finish();
 							}
@@ -146,30 +261,33 @@ public class MainActivity extends TabActivity {
 							@Override
 							public void onClick(DialogInterface dialog,
 									int which) {
-								// TODO Auto-generated method stub
 								finish();
 							}
 						}).show();
 	}
 
 	@Override
-	public boolean onKeyUp(int keycode, KeyEvent event) {
-		switch (keycode) {
-
-		case KeyEvent.KEYCODE_BACK:
-
-			/*
-			 * if (true) { exitWithAlertDialog(); return false; }
-			 */
-		default:
-
-		}
-		return super.onKeyUp(keycode, event);
-	}
-
-	@Override
 	public boolean onOptionsItemSelected(MenuItem item) {
 		switch (item.getItemId()) {
+
+		case R.id.menu_reconn:
+			if (getPID() == -1) {
+				Toast.makeText(MainActivity.this, R.string.not_yet_started_msg,
+						Toast.LENGTH_SHORT).show();
+				break;
+			}
+
+			new Thread() {
+				@Override
+				public void run() {
+					szSocketRet = liteSocket(SOCKET_CMD_RECONN);
+					if ("done\0".equals(szSocketRet)) {
+						mHandler.sendEmptyMessage(MSG_RECONN);
+					}
+				}
+			}.start();
+			break;
+
 		case R.id.menu_about:
 			new AlertDialog.Builder(this)
 					.setMessage(getString(R.string.about_msg))
@@ -179,7 +297,6 @@ public class MainActivity extends TabActivity {
 								@Override
 								public void onClick(DialogInterface dialog,
 										int which) {
-									// TODO Auto-generated method stub
 									dialog.dismiss();
 								}
 							}).create().show();
@@ -195,61 +312,46 @@ public class MainActivity extends TabActivity {
 		return super.onOptionsItemSelected(item);
 	}
 
-	private Handler statHandler = new Handler() {
-		@Override
-		public void handleMessage(Message msg) {
-			super.handleMessage(msg);
-			// Deal with UI changes
-			if (szStatInfo == null || szStatInfo == "") {
-				return;
-			}
-
-			String[] info = szStatInfo.split(";");
-			if (info.length == 4) {
-				TextView tv = (TextView) findViewById(R.id.tv_stat);
-				tv.setText(String.format(getString(R.string.str_stat_login_tm),
-						info[0]));
-				tv.append(String.format(getString(R.string.str_stat_up_flow),
-						Long.valueOf(info[1])));
-				tv.append(String.format(getString(R.string.str_stat_dw_flow),
-						Long.valueOf(info[2])));
-				boolean online = false;
-				if (info[3].equals("1")) {
-					online = true;
-				}
-
-				if (getPID() != -1) {
-					Notifications.updateNotification(MainActivity.this,
-							getString(R.string.app_name),
-							getString(R.string.start_msg), online,
-							NOTIFICATION_VPN_CLIENT);
-				}
-			}
-		}
-	};
-
 	protected void refreshStat() {
 		new Thread() {
 			@Override
 			public void run() {
-				try {
-					Socket socket = new Socket("127.0.0.1", 60702);
-					OutputStream os = socket.getOutputStream();
-					os.write("cmd001".getBytes());
-					os.flush();
-					BufferedReader br = new BufferedReader(
-							new InputStreamReader(socket.getInputStream()));
-					szStatInfo = br.readLine();
-					Log.v(TAG, szStatInfo);
-				} catch (UnknownHostException e) {
-					e.printStackTrace();
-				} catch (IOException e) {
-					e.printStackTrace();
+				if (getPID() != -1) {
+					szStatInfo = liteSocket(SOCKET_CMD_STAT);
+					mHandler.sendEmptyMessage(MSG_STAT);
 				}
-
-				statHandler.sendEmptyMessage(0);
 			}
 		}.start();
+	}
+
+	protected String liteSocket(final String out) {
+		if (getPID() == -1) {
+			Log.e(TAG, "socket server is not alive.");
+			return null;
+		}
+
+		String in = "";
+		try {
+			Socket socket = new Socket(SOCKET_IP, SOCKET_PORT);
+			OutputStream os = socket.getOutputStream();
+			Log.v(TAG, "outSocket: " + out);
+			os.write(out.getBytes());
+			os.flush();
+			BufferedReader br = new BufferedReader(new InputStreamReader(
+					socket.getInputStream()));
+			in = br.readLine();
+			Log.v(TAG, "inSocket: " + in);
+			os.close();
+			socket.close();
+		} catch (UnknownHostException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
+		return in;
 	}
 
 	protected String getConfigItem(String key) {
@@ -264,6 +366,21 @@ public class MainActivity extends TabActivity {
 					Toast.LENGTH_SHORT).show();
 		}
 		return value;
+	}
+
+	@Override
+	public boolean onKeyUp(int keycode, KeyEvent event) {
+		switch (keycode) {
+
+		case KeyEvent.KEYCODE_BACK:
+
+			/*
+			 * if (true) { exitWithAlertDialog(); return false; }
+			 */
+		default:
+
+		}
+		return super.onKeyUp(keycode, event);
 	}
 
 	protected boolean setConfigItem(String key, String value) {
@@ -285,6 +402,7 @@ public class MainActivity extends TabActivity {
 		EditText etAddr = (EditText) findViewById(R.id.txt_addr);
 		EditText etPort = (EditText) findViewById(R.id.txt_port);
 		Spinner spAlgo = (Spinner) findViewById(R.id.spin_algo);
+		Spinner spComp = (Spinner) findViewById(R.id.spin_comp);
 		EditText etTMS = (EditText) findViewById(R.id.txt_times);
 		EditText etINT = (EditText) findViewById(R.id.txt_interval);
 
@@ -295,6 +413,7 @@ public class MainActivity extends TabActivity {
 			etAddr.setText(connect.substring(0, sep).trim());
 			etPort.setText(connect.substring(sep + 1).trim());
 		}
+
 		String cipher = getConfigItem(CONF_CIPHERS);
 		if (cipher != null) {
 			Log.d(TAG, "ciphers = " + cipher);
@@ -304,12 +423,27 @@ public class MainActivity extends TabActivity {
 			for (int i = 0; i < selections.length; i++) {
 				if (selections[i].equalsIgnoreCase(cipher)) {
 					cipher_id = i;
-
 					break;
 				}
 			}
 			spAlgo.setSelection(cipher_id);
 		}
+
+		String compress = getConfigItem(CONF_COMPRESS);
+		if (compress != null) {
+			Log.d(TAG, "compress = " + compress);
+			String[] selections = getResources().getStringArray(
+					R.array.compression);
+			int cmp_id = 0;
+			for (int i = 0; i < selections.length; i++) {
+				if (selections[i].equalsIgnoreCase(compress)) {
+					cmp_id = i;
+					break;
+				}
+			}
+			spComp.setSelection(cmp_id);
+		}
+
 		String rec_times = getConfigItem(CONF_REC_TMS);
 		if (rec_times != null) {
 			etTMS.setText(rec_times);
@@ -324,6 +458,7 @@ public class MainActivity extends TabActivity {
 		EditText etAddr = (EditText) findViewById(R.id.txt_addr);
 		EditText etPort = (EditText) findViewById(R.id.txt_port);
 		Spinner spAlgo = (Spinner) findViewById(R.id.spin_algo);
+		Spinner spComp = (Spinner) findViewById(R.id.spin_comp);
 		EditText etTMS = (EditText) findViewById(R.id.txt_times);
 		EditText etINT = (EditText) findViewById(R.id.txt_interval);
 		boolean ret = setConfigItem(CONF_CONNECT, String.format("%s:%s", etAddr
@@ -332,46 +467,51 @@ public class MainActivity extends TabActivity {
 		String[] selections = getResources().getStringArray(R.array.algorithms);
 		int cipher_id = (int) spAlgo.getSelectedItemId();
 		ret = ret && setConfigItem(CONF_CIPHERS, selections[cipher_id]);
+		selections = getResources().getStringArray(R.array.compression);
+		int cmp_id = (int) spComp.getSelectedItemId();
+		ret = ret && setConfigItem(CONF_COMPRESS, selections[cmp_id]);
 		ret = ret && setConfigItem(CONF_REC_TMS, etTMS.getText().toString());
 		ret = ret && setConfigItem(CONF_REC_INT, etINT.getText().toString());
 		return ret;
 	}
 
+	private void refreshLogs() {
+		try {
+			String logfile = getConfigItem(CONF_OUTPUT);
+			// Log.v(TAG, "log file is " + logfile);
+			File file = new File(logfile);
+			if (file.exists()) {
+				String logs = FileUtils.readFileToString(file, "gb2312");
+
+				TextView tvLogs = (TextView) findViewById(R.id.tv_logs);
+				tvLogs.setText(logs);
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
 	private final Runnable startService = new Runnable() {
 		@Override
 		public void run() {
-			String cmd = SystemCommands.APP_PATH + File.separator
-					+ "vpn-client" + " " + SystemCommands.APP_PATH
+			String cmd = SystemCommands.getAppPath() + File.separator
+					+ "vpn-client" + " " + SystemCommands.getAppPath()
 					+ File.separator + CONF_FILENAME;
 			String ret = SystemCommands.executeCommnad(cmd);
-			if (ret == "") {
-				try {
-					String logfile = getConfigItem(CONF_OUTPUT);
-					// Log.v(TAG, "log file is " + logfile);
-					File file = new File(logfile);
-					if (file.exists()) {
-						String logs = FileUtils.readFileToString(file);
-						ret = logs;
-					}
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
+			mHandler.removeCallbacks(mUpdateState);
+			if (ret != "") {
+				TextView tvLogs = (TextView) findViewById(R.id.tv_logs);
+				tvLogs.setText(ret);
+			} else {
+				mHandler.post(mUpdateState);
 			}
 
 			SystemClock.sleep(1500); // wait for daemon to catch up
-			long pid = getPID();
-			if (pid == -1) {
-				Log.e(TAG, "quit startService while getpid = " + pid);
-				return;
+			if (getPID() != -1) {
+				mHandler.sendEmptyMessage(MSG_START);
+			} else {
+				Log.e(TAG, "quit startService while getpid=-1");
 			}
-
-			Toast.makeText(MainActivity.this, R.string.start_msg,
-					Toast.LENGTH_SHORT).show();
-			TextView tvLogs = (TextView) findViewById(R.id.tv_logs);
-			tvLogs.setText(ret);
-			Notifications.showNotification(MainActivity.this,
-					getString(R.string.app_name),
-					getString(R.string.start_msg), NOTIFICATION_VPN_CLIENT);
 		}
 	};
 
@@ -385,18 +525,24 @@ public class MainActivity extends TabActivity {
 				return;
 			}
 
-			SystemCommands.executeCommnad("kill -9 " + String.valueOf(pid));
-			try {
-				FileUtils.forceDelete(new File(getPIDFile()));
-				szStatInfo = "";
-			} catch (IOException e) {
-				e.printStackTrace();
-				Log.e(TAG, " Error on deleting pidfile.");
-			}
-			Toast.makeText(MainActivity.this, R.string.stop_msg,
-					Toast.LENGTH_SHORT).show();
-			Notifications.clearNotification(MainActivity.this,
-					NOTIFICATION_VPN_CLIENT);
+			/* use kill signal to stop service */
+			/*
+			 * SystemCommands.executeCommnad("kill -9 " + String.valueOf(pid));
+			 * try { FileUtils.forceDelete(new File(getPIDFile())); szStatInfo =
+			 * ""; } catch (IOException e) { e.printStackTrace(); Log.e(TAG,
+			 * " Error on deleting pidfile."); }
+			 */
+
+			new Thread() {
+				@Override
+				public void run() {
+					szSocketRet = liteSocket(SOCKET_CMD_STOP);
+					if ("done".equals(szSocketRet)) {
+						Log.v(TAG, "stop service successfully.");
+						mHandler.sendEmptyMessage(MSG_STOP);
+					}
+				}
+			}.start();
 		}
 	};
 
@@ -455,6 +601,18 @@ public class MainActivity extends TabActivity {
 		}
 		tabHost.setCurrentTab(0);
 
+		TabWidget tabWidget = tabHost.getTabWidget();
+		for (int i = 0; i < tabWidget.getChildCount(); i++) {
+			DisplayMetrics displayMetrics = getResources().getDisplayMetrics();
+			int screen_width = displayMetrics.widthPixels;
+			tabWidget.getChildAt(i).getLayoutParams().width = screen_width / 3;
+			final TextView tv = (TextView) tabWidget.getChildAt(i)
+					.findViewById(android.R.id.title);
+			tv.setTextColor(Color.BLACK);
+			tv.setTextSize(20); // set to 20sp, refer to 18sp for content
+			tv.setGravity(Gravity.CENTER_HORIZONTAL);
+		}
+
 		tabHost.setOnTabChangedListener(new OnTabChangeListener() {
 			@Override
 			public void onTabChanged(String tabId) {
@@ -466,13 +624,21 @@ public class MainActivity extends TabActivity {
 				}
 			}
 
-			// TODO Add tab change related code here
 			private void showLayer(int idLayer) {
 				LinearLayout layout;
 				int layers[] = { R.id.tab_logs, R.id.tab_stat, R.id.tab_conf };
 				for (int i = 0; i < layers.length; i++) {
 					layout = (LinearLayout) findViewById(layers[i]);
 					if (layers[i] == idLayer) {
+						// if it is statistics tab, refresh data before show up
+						if (idLayer == R.id.tab_stat) {
+							refreshStat();
+						}
+						// hide soft keyboard if any
+						InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+						imm.hideSoftInputFromWindow(MainActivity.this
+								.getCurrentFocus().getWindowToken(), 0);
+
 						layout.setVisibility(View.VISIBLE);
 					} else {
 						layout.setVisibility(View.GONE);
@@ -481,7 +647,6 @@ public class MainActivity extends TabActivity {
 			}
 		});
 
-		// TODO: Add code for buttons here
 		/*
 		 * ********** REFRESH ***********
 		 */
@@ -529,26 +694,21 @@ public class MainActivity extends TabActivity {
 						.getWindowToken(), 0);
 
 				boolean ret = saveConfig();
-				if (ret) {
-					try {
-						Socket socket = new Socket("127.0.0.1", 60702);
-						OutputStream os = socket.getOutputStream();
-						os.write("cmd003".getBytes());
-						os.flush();
-						BufferedReader br = new BufferedReader(
-								new InputStreamReader(socket.getInputStream()));
-						if ("done".equals(br.readLine())) {
-							Log.v(TAG, "Reload config successfully.");
-						}
-					} catch (UnknownHostException e) {
-						e.printStackTrace();
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-
+				if (ret && getPID() != -1) {
 					Toast.makeText(MainActivity.this, R.string.save_ok_msg,
 							Toast.LENGTH_SHORT).show();
 					getConfig();
+
+					new Thread() {
+						@Override
+						public void run() {
+							szSocketRet = liteSocket(SOCKET_CMD_RECONF);
+							if ("done".equals(szSocketRet)) {
+								Log.v(TAG, "Reload config successfully.");
+								mHandler.sendEmptyMessage(MSG_RECONF);
+							}
+						}
+					}.start();
 				}
 			}
 		});

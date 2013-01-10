@@ -14,8 +14,17 @@ import android.util.Log;
 public final class SystemCommands {
 
 	private final static String TAG = "SystemCommand";
-	public static final String APP_PATH = "/data/data/com.sgcc.vpn_client";
-	public static final String STORAGE_PATH = "/mnt/sdcard/vpn_client";
+	private static String APP_PATH = "/data/data/com.sgcc.vpn_client";
+
+	public static void setAppPath(final String path) {
+		if (path != null && path != "") {
+			APP_PATH = path;
+		}
+	}
+
+	public static String getAppPath() {
+		return APP_PATH;
+	}
 
 	protected static boolean copyFileAndChmod(AssetManager am, String src_path,
 			String tgt_path, String mode) {
@@ -64,9 +73,9 @@ public final class SystemCommands {
 			String toString = APP_PATH + File.separator + filename;
 
 			// skip config file
-			if (filename == "config.txt" && new File(toString).exists()) {
-				continue;
-			}
+			// if (filename == "config.txt" && new File(toString).exists()) {
+			// continue;
+			// }
 
 			Log.v(TAG, "copying " + filename + " to " + toString);
 			copyFileAndChmod(am, filename, toString, "755");

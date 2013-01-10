@@ -1,6 +1,12 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android" >
 
     <item
+        android:id="@+id/menu_reconn"
+        android:orderInCategory="99"
+        android:showAsAction="ifRoom|withText"
+        android:title="@string/menu_reconn"/>
+    
+    <item
         android:id="@+id/menu_about"
         android:orderInCategory="100"
         android:showAsAction="never"
