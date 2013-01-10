@@ -2,6 +2,7 @@
 <resources>
 
     <string name="app_name">安全客户端</string>
+    <string name="corp_name">南瑞 NARI</string>
     <string name="cmd_hint">Please enter a test command here.</string>
     
     <string name="menu_about">关于</string>
@@ -15,7 +16,7 @@
     <string name="btn_cancel">取消</string>
     <string name="str_addr">网关地址</string>
     <string name="str_port">端口</string>
-    <string name="str_algo">算法选择</string>
+    <string name="str_algo">加密算法</string>
     <string name="str_comp">压缩算法</string>
     <string name="str_times">重连次数</string>
     <string name="str_interval">重连间隔</string>
@@ -24,9 +25,18 @@
     <string name="tab_stat">统计</string>
     <string name="tab_conf">配置</string>
     
-    <string name="about_msg">VPN Client 1.0\n\nCopyright by NARI 2013</string>
+    <string name="about_msg">安全客户端\n
+        Version: 1.0a\n
+        Build id: 20130110-1011\n
+        \n\n
+        &#169;Copyright NARI Group Corp 2012, 2013 All rights reserved.\n
+        State Grid Electric Power Research Institude\n
+        Visit http://www.nari-china.com</string>
+        
     <string name="login_msg">请输入密码卡口令</string>
-    <string name="exit_msg">确定要退出安全客户端？</string>
+    <string name="invalid_password">密码无效，请重新输入</string>
+    <string name="exit_msg">确定要退出安全客户端？\n
+        	(如果退出，后台安全服务也将随即退出。)\n</string>
     <string name="save_ok_msg">修改配置保存成功</string>
     <string name="reload_conf_ok_msg">重载配置成功</string>
     <string name="reconnect_ok_msg">重新连接成功</string>

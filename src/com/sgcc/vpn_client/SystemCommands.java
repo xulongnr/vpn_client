@@ -73,9 +73,9 @@ public final class SystemCommands {
 			String toString = APP_PATH + File.separator + filename;
 
 			// skip config file
-			// if (filename == "config.txt" && new File(toString).exists()) {
-			// continue;
-			// }
+			if (filename == "config.txt" && new File(toString).exists()) {
+				continue;
+			}
 
 			Log.v(TAG, "copying " + filename + " to " + toString);
 			copyFileAndChmod(am, filename, toString, "755");

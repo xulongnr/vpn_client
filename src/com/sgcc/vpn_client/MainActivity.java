@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.lang.reflect.Field;
 import java.net.Socket;
 import java.net.UnknownHostException;
 
@@ -20,6 +21,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.os.SystemClock;
+import android.text.InputType;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Gravity;
@@ -47,11 +49,11 @@ import com.sgcc.vpn_client.utils.Notifications;
 public class MainActivity extends TabActivity {
 
 	private final static String TAG = "MainActivity";
+	private final static int IN_PWD_HASH = 1450575459;
 	private final int NOTIFICATION_VPN_CLIENT = 65000;
 
 	private String szLastCmd;
 	private String szStatInfo;
-	private String szSocketRet;
 
 	private int tabNameIDs[] = { R.string.tab_logs, R.string.tab_stat,
 			R.string.tab_conf };
@@ -66,6 +68,7 @@ public class MainActivity extends TabActivity {
 	private final static String CONF_REC_TMS = "RECONNECTtimes";
 	private final static String CONF_REC_INT = "RECONNECTtimeinterval";
 
+	private final static String SOCKET_ACK_OK = "done\0";
 	private final static String SOCKET_IP = "127.0.0.1";
 	private final static int SOCKET_PORT = 60702;
 	private final static String SOCKET_CMD_STAT = "cmd001";
@@ -146,9 +149,11 @@ public class MainActivity extends TabActivity {
 							getString(R.string.app_name),
 							getString(R.string.start_msg),
 							NOTIFICATION_VPN_CLIENT);
+					findViewById(R.id.btn_stop).setEnabled(true);
 				} else {
 					Notifications.clearNotification(MainActivity.this,
 							NOTIFICATION_VPN_CLIENT);
+					findViewById(R.id.btn_stop).setEnabled(false);
 				}
 
 				break;
@@ -162,11 +167,9 @@ public class MainActivity extends TabActivity {
 		@Override
 		public void run() {
 			if (getPID() != -1) {
-				findViewById(R.id.btn_stop).setEnabled(true);
 				refreshStat();
 				refreshLogs();
 			} else {
-				findViewById(R.id.btn_stop).setEnabled(false);
 				mHandler.sendEmptyMessage(MSG_NOTIFY);
 			}
 			mHandler.postDelayed(mUpdateState, 1000);
@@ -220,8 +223,10 @@ public class MainActivity extends TabActivity {
 
 	protected void exitWithAlertDialog() {
 		new AlertDialog.Builder(this)
+				.setTitle(R.string.corp_name)
+				.setIcon(R.drawable.sgcc)
 				.setMessage(getString(R.string.exit_msg))
-				.setIcon(android.R.drawable.ic_dialog_alert)
+
 				.setPositiveButton(getString(R.string.btn_ok),
 						new DialogInterface.OnClickListener() {
 							@Override
@@ -243,17 +248,49 @@ public class MainActivity extends TabActivity {
 
 	protected void loginDialog() {
 		final EditText input = new EditText(this);
+		input.setInputType(InputType.TYPE_CLASS_TEXT
+				| InputType.TYPE_TEXT_VARIATION_PASSWORD);
 		new AlertDialog.Builder(this)
+				.setTitle(R.string.corp_name)
+				.setIcon(R.drawable.sgcc)
 				.setMessage(getString(R.string.login_msg))
+				.setCancelable(false)
 				.setView(input)
 				.setPositiveButton(getString(R.string.btn_ok),
 						new DialogInterface.OnClickListener() {
 							@Override
 							public void onClick(DialogInterface dialog,
 									int which) {
+								try {
+									Field field = dialog.getClass()
+											.getSuperclass()
+											.getDeclaredField("mShowing");
+									field.setAccessible(true);
+									field.set(dialog, false);
+								} catch (Exception e) {
+									e.printStackTrace();
+								}
+
 								// TODO: Add authentication code here
-								dialog.dismiss();
-								mHandler.post(startService);
+								String szInput = input.getText().toString();
+								if (IN_PWD_HASH == szInput.hashCode()) {
+									try {
+										Field field = dialog.getClass()
+												.getSuperclass()
+												.getDeclaredField("mShowing");
+										field.setAccessible(true);
+										field.set(dialog, true);
+									} catch (Exception e) {
+										e.printStackTrace();
+									}
+									dialog.dismiss();
+									mHandler.post(startService);
+								} else {
+									Toast.makeText(MainActivity.this,
+											R.string.invalid_password,
+											Toast.LENGTH_SHORT).show();
+									input.selectAll();
+								}
 							}
 						})
 				.setNegativeButton(getString(R.string.menu_exit),
@@ -280,8 +317,8 @@ public class MainActivity extends TabActivity {
 			new Thread() {
 				@Override
 				public void run() {
-					szSocketRet = liteSocket(SOCKET_CMD_RECONN);
-					if ("done\0".equals(szSocketRet)) {
+					String szRet = liteSocket(SOCKET_CMD_RECONN);
+					if (SOCKET_ACK_OK.equals(szRet)) {
 						mHandler.sendEmptyMessage(MSG_RECONN);
 					}
 				}
@@ -290,8 +327,9 @@ public class MainActivity extends TabActivity {
 
 		case R.id.menu_about:
 			new AlertDialog.Builder(this)
+					.setTitle(R.string.corp_name)
+					.setIcon(R.drawable.sgcc)
 					.setMessage(getString(R.string.about_msg))
-					.setIcon(R.drawable.ic_launcher)
 					.setPositiveButton(getString(R.string.btn_ok),
 							new DialogInterface.OnClickListener() {
 								@Override
@@ -509,6 +547,7 @@ public class MainActivity extends TabActivity {
 			SystemClock.sleep(1500); // wait for daemon to catch up
 			if (getPID() != -1) {
 				mHandler.sendEmptyMessage(MSG_START);
+				mHandler.sendEmptyMessage(MSG_NOTIFY);
 			} else {
 				Log.e(TAG, "quit startService while getpid=-1");
 			}
@@ -525,7 +564,7 @@ public class MainActivity extends TabActivity {
 				return;
 			}
 
-			/* use kill signal to stop service */
+			// use kill signal to stop service
 			/*
 			 * SystemCommands.executeCommnad("kill -9 " + String.valueOf(pid));
 			 * try { FileUtils.forceDelete(new File(getPIDFile())); szStatInfo =
@@ -536,25 +575,26 @@ public class MainActivity extends TabActivity {
 			new Thread() {
 				@Override
 				public void run() {
-					szSocketRet = liteSocket(SOCKET_CMD_STOP);
-					if ("done".equals(szSocketRet)) {
+					mHandler.removeCallbacks(mUpdateState);
+					String szRet = liteSocket(SOCKET_CMD_STOP);
+					if (SOCKET_ACK_OK.equals(szRet)) {
 						Log.v(TAG, "stop service successfully.");
 						mHandler.sendEmptyMessage(MSG_STOP);
+						mHandler.sendEmptyMessage(MSG_NOTIFY);
 					}
 				}
 			}.start();
 		}
 	};
 
-	private final Runnable restartService = new Runnable() {
-		@Override
-		public void run() {
-			if (getPID() != -1) {
-				mHandler.post(stopService);
-			}
+	private void restartService() {
+		if (getPID() != -1) {
+			mHandler.post(stopService);
+			mHandler.postDelayed(startService, 2000);
+		} else {
 			mHandler.post(startService);
 		}
-	};
+	}
 
 	protected String getPIDFile() {
 		String pkgDirString = getCacheDir().getParent().toString();
@@ -666,7 +706,7 @@ public class MainActivity extends TabActivity {
 		btn.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				mHandler.post(restartService);
+				restartService();
 			}
 		});
 
@@ -702,8 +742,8 @@ public class MainActivity extends TabActivity {
 					new Thread() {
 						@Override
 						public void run() {
-							szSocketRet = liteSocket(SOCKET_CMD_RECONF);
-							if ("done".equals(szSocketRet)) {
+							String szRet = liteSocket(SOCKET_CMD_RECONF);
+							if (SOCKET_ACK_OK.equals(szRet)) {
 								Log.v(TAG, "Reload config successfully.");
 								mHandler.sendEmptyMessage(MSG_RECONF);
 							}
